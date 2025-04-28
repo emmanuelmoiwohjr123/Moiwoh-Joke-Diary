@@ -5,8 +5,8 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon Back-End/server.js",
-    "start": "node Back-End/server.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
