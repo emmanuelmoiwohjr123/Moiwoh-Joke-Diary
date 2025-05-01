@@ -4,7 +4,10 @@ import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv"
 import sequelize from './config/database.js';
+// Import models to ensure they are initialized before routes
+import './models/index.js';
 import authRoutes from './routes/authRoutes.js';
+import jokeRoutes from './routes/jokeRoutes.js';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import pg from 'pg';
@@ -68,6 +71,7 @@ app.use(helmet());
 
 // Routes
 app.use('/api/auth/', authRoutes);
+app.use('/api', jokeRoutes);
 
 const PORT = process.env.PORT || 4000;
 
