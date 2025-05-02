@@ -10,12 +10,16 @@ import {
     updateJoke,
     deleteJoke,
     likeJoke,
-    unlikeJoke
+    unlikeJoke,
+    getCategories,
+    getStats
 } from '../controllers/jokeController.js';
 
 // Public routes
-router.get('/jokes', getJokes);
+router.get('/jokes/categories', getCategories);
+router.get('/jokes/stats', isAuthenticated, getStats);
 router.get('/jokes/:jokeId', getJokeById);
+router.get('/jokes', getJokes);
 
 // Protected routes that require authentication
 router.post('/jokes', isAuthenticated, createJoke);

@@ -31,6 +31,10 @@ const Joke = sequelize.define('Joke', {
     updated_at: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW
+    },
+    category: {
+        type: DataTypes.STRING(50),
+        allowNull: true
     }
 }, {
     tableName: 'Jokes',

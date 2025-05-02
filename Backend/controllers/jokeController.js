@@ -1,7 +1,8 @@
 import { Joke } from '../models/joke.js';
 import { Like } from '../models/like.js';
 import { User } from '../models/user.js';
-import { Op } from 'sequelize';
+import { Op, fn, col, literal } from 'sequelize';
+import { Comment } from '../models/comment.js';
 
 // Get all jokes with optional filters
 export const getJokes = async (req, res) => {
@@ -285,7 +286,16 @@ export const unlikeJoke = async (req, res) => {
         const { jokeId } = req.params;
         const userId = req.session.userId;
 
-        // Find and delete the like
+        // Check if joke exists
+        const joke = await Joke.findByPk(jokeId);
+        if (!joke) {
+            return res.status(404).json({
+                success: false,
+                message: 'Joke not found'
+            });
+        }
+
+        // Check if like exists
         const like = await Like.findOne({
             where: {
                 joke_id: jokeId,
@@ -294,12 +304,13 @@ export const unlikeJoke = async (req, res) => {
         });
 
         if (!like) {
-            return res.status(404).json({
+            return res.status(400).json({
                 success: false,
                 message: 'You have not liked this joke'
             });
         }
 
+        // Remove like
         await like.destroy();
 
         // Get updated like count
@@ -324,3 +335,166 @@ export const unlikeJoke = async (req, res) => {
         });
     }
 };
+
+// Get joke statistics
+export const getStats = async (req, res) => {
+    try {
+        console.log('Fetching joke statistics...');
+
+        // Get total counts
+        const [totalJokes, totalLikes, totalComments] = await Promise.all([
+            Joke.count(),
+            Like.count(),
+            Comment.count()
+        ]);
+
+        console.log('Total counts:', { totalJokes, totalLikes, totalComments });
+
+        // Get top jokes by likes
+        const topJokesQuery = await Joke.findAll({
+            attributes: ['joke_id', 'title', 'content'],
+            include: [
+                {
+                    model: User,
+                    attributes: ['username'],
+                    required: true
+                },
+                {
+                    model: Like,
+                    attributes: [],
+                    required: false
+                }
+            ],
+            group: ['Joke.joke_id', 'Joke.title', 'Joke.content', 'User.user_id', 'User.username'],
+            order: literal('COUNT("Likes"."like_id") DESC'),
+            limit: 5,
+            subQuery: false
+        });
+
+        // Get like counts for top jokes
+        const topJokes = await Promise.all(topJokesQuery.map(async (joke) => {
+            const likeCount = await Like.count({
+                where: { joke_id: joke.joke_id }
+            });
+            return {
+                id: joke.joke_id,
+                title: joke.title,
+                content: joke.content,
+                author: joke.User.username,
+                likes: likeCount
+            };
+        }));
+
+        console.log('Top jokes found:', topJokes.length);
+
+        // Get top contributors
+        const users = await User.findAll({
+            attributes: ['user_id', 'username'],
+            include: [
+                {
+                    model: Joke,
+                    attributes: [],
+                    required: false
+                }
+            ],
+            group: ['User.user_id', 'User.username'],
+            order: literal('COUNT("Jokes"."joke_id") DESC'),
+            limit: 10,
+            subQuery: false
+        });
+
+        // Get detailed stats for top users
+        const userStats = await Promise.all(users.map(async (user) => {
+            const [jokeCount, likesReceived] = await Promise.all([
+                Joke.count({ where: { user_id: user.user_id } }),
+                Like.count({
+                    include: [{
+                        model: Joke,
+                        where: { user_id: user.user_id },
+                        required: true
+                    }]
+                })
+            ]);
+
+            return {
+                id: user.user_id,
+                username: user.username,
+                jokes: jokeCount,
+                likesReceived: likesReceived
+            };
+        }));
+
+        // Filter out users with no activity
+        const activeUserStats = userStats
+            .filter(user => user.jokes > 0 || user.likesReceived > 0)
+            .sort((a, b) => b.jokes - a.jokes || b.likesReceived - a.likesReceived)
+            .slice(0, 5);
+
+        console.log('Top contributors found:', activeUserStats.length);
+
+        res.json({
+            success: true,
+            data: {
+                totalJokes,
+                totalLikes,
+                totalComments,
+                topJokes,
+                topContributors: activeUserStats
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching statistics',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
+    }
+};
+
+// Get joke categories
+export const getCategories = async (req, res) => {
+    try {
+        console.log('Fetching categories...');
+        
+        const categories = await Joke.findAll({
+            attributes: [
+                [fn('DISTINCT', col('category')), 'category']
+            ],
+            where: {
+                category: {
+                    [Op.not]: null,
+                    [Op.ne]: ''
+                }
+            }
+        });
+
+        console.log('Raw categories:', categories);
+
+        const categoryList = categories
+            .map(c => {
+                const category = c.getDataValue('category');
+                console.log('Processing category:', category);
+                return category;
+            })
+            .filter(category => category && category.trim() !== '')
+            .sort();
+
+        console.log('Processed categories:', categoryList);
+
+        res.json({
+            success: true,
+            data: categoryList || [],
+            count: categoryList.length
+        });
+    } catch (error) {
+        console.error('Error fetching categories:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch categories',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
+    }
+};
+
+

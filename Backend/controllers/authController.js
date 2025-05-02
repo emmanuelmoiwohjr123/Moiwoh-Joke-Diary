@@ -38,17 +38,19 @@ export const register = async (req, res) => {
             });
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 12);
-
-        // Create user
+        // Create user with password (will be hashed by model hook)
         const newUser = await User.create({
             username,
             email,
-            password_hash: hashedPassword,
+            password_hash: password, // Model hook will hash this
             registration_date: new Date(),
             is_active: true,
             is_admin: false
+        });
+
+        console.log('User created:', {
+            id: newUser.user_id,
+            hashedPassword: newUser.password_hash.substring(0, 10) + '...'
         });
 
         // Set up session
@@ -86,10 +88,12 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
     const { email, password } = req.body;
+    console.log('Login attempt:', { email });
 
     try {
         // Validate input
         if (!email || !password) {
+            console.log('Missing credentials:', { email, hasPassword: !!password });
             return res.status(400).json({
                 success: false,
                 message: 'Email and password are required'
@@ -98,6 +102,12 @@ export const login = async (req, res) => {
 
         // Find user
         const user = await User.findOne({ where: { email } });
+        console.log('User found:', { 
+            found: !!user, 
+            isActive: user?.is_active,
+            hashedPassword: user?.password_hash?.substring(0, 10) + '...'
+        });
+        
         if (!user || !user.is_active) {
             return res.status(401).json({
                 success: false,
@@ -105,8 +115,14 @@ export const login = async (req, res) => {
             });
         }
 
-        // Verify password
-        const isValidPassword = await bcrypt.compare(password, user.password_hash);
+        // Verify password using instance method
+        const isValidPassword = await user.verifyPassword(password);
+        console.log('Password verification:', { 
+            isValid: isValidPassword,
+            passwordLength: password?.length,
+            hashLength: user.password_hash?.length
+        });
+        
         if (!isValidPassword) {
             return res.status(401).json({
                 success: false,
@@ -175,15 +191,39 @@ export const logout = async (req, res) => {
     }
 };
 
-export const checkAuth = (req, res) => {
-  if (req.session.userId) {
-    return res.status(200).json({ 
-      authenticated: true,
-      message: "User is authenticated"
+export const checkAuth = async (req, res) => {
+  try {
+    if (!req.session.userId) {
+      return res.status(200).json({
+        success: false,
+        message: "User is not authenticated"
+      });
+    }
+
+    const user = await User.findByPk(req.session.userId);
+    if (!user || !user.is_active) {
+      return res.status(200).json({
+        success: false,
+        message: "User not found or inactive"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User is authenticated",
+      data: {
+        user_id: user.user_id,
+        username: user.username,
+        email: user.email,
+        is_admin: user.is_admin
+      }
+    });
+  } catch (error) {
+    console.error('Check auth error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking authentication',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
-  res.status(200).json({ 
-    authenticated: false,
-    message: "User is not authenticated"
-  });
 };

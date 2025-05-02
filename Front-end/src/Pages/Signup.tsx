@@ -1,4 +1,6 @@
 import { useState, ChangeEvent, FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import axios from "axios";
 
 interface FormData {
@@ -9,6 +11,8 @@ interface FormData {
 }
 
 const Signup = () => {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   // State to manage form data
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -45,11 +49,18 @@ const Signup = () => {
 
     try {
       // Send the form data to the backend
-      const response = await axios.post("http://localhost:5000/api/auth/signup", formData);
+      const response = await axios.post("http://localhost:5000/api/auth/register", {
+        username: formData.name,
+        email: formData.email,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword
+      });
 
       // If successful, display a success message
-      if (response.status === 201) {
-        setSuccessMessage("Signup successful! You can now log in.");
+      if (response.data.success) {
+        // Auto-login after successful registration
+        await login(formData.email, formData.password);
+        navigate("/dashboard");
       }
 
       // Clear the form after successful submission

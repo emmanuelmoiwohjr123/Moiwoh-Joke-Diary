@@ -1,14 +1,7 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import axios from "axios";
-
-interface LoginResponse {
-  token: string;
-  user: {
-    id: string;
-    email: string;
-  };
-}
 
 const Login = () => {
   const [email, setEmail] = useState<string>("");
@@ -16,20 +9,19 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     try {
-      const response = await axios.post<LoginResponse>(
-        "http://localhost:5000/api/auth/login",
-        { email, password }
-      );
-
-      if (response.status === 200) {
-        console.log("Login successful:", response.data);
-        navigate("/dashboard");
-      }
+      // Use the login function from auth context
+      await login(email, password);
+      
+      // After successful login, redirect
+      const from = (location.state as any)?.from || "/dashboard";
+      navigate(from, { replace: true });
     } catch (err) {
       const errorMessage =
         axios.isAxiosError(err) && err.response?.data?.message
@@ -47,23 +39,29 @@ const Login = () => {
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-gray-700">Email</label>
+            <label htmlFor="email" className="block text-gray-700">Email</label>
             <input
               type="email"
+              id="email"
+              name="email"
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter your email"
               required
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-gray-700">Password</label>
+            <label htmlFor="password" className="block text-gray-700">Password</label>
             <input
               type="password"
+              id="password"
+              name="password"
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter your password"
               required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
+import bcrypt from 'bcrypt';
 
 const User = sequelize.define('User', {
     user_id: {
@@ -46,7 +47,24 @@ const User = sequelize.define('User', {
     }
 }, {
     tableName: 'Users',
-    timestamps: false
+    timestamps: false,
+    hooks: {
+        beforeCreate: async (user) => {
+            if (user.password_hash) {
+                user.password_hash = await bcrypt.hash(user.password_hash, 12);
+            }
+        },
+        beforeUpdate: async (user) => {
+            if (user.changed('password_hash')) {
+                user.password_hash = await bcrypt.hash(user.password_hash, 12);
+            }
+        }
+    }
 });
+
+// Add instance method to verify password
+User.prototype.verifyPassword = async function(password) {
+    return bcrypt.compare(password, this.password_hash);
+};
 
 export { User };

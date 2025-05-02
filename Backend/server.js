@@ -8,6 +8,7 @@ import sequelize from './config/database.js';
 import './models/index.js';
 import authRoutes from './routes/authRoutes.js';
 import jokeRoutes from './routes/jokeRoutes.js';
+import commentRoutes from './routes/commentRoutes.js';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import pg from 'pg';
@@ -37,33 +38,47 @@ idleTimeoutMillis: 20000
 const PgSession = connectPgSimple(session);
 
 
+// Middleware
+// CORS configuration must come first
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['set-cookie']
+}));
+
+// Body parsing middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+// Security middleware
+app.use(helmet());
+
+// Session configuration
 app.use(session({
   store: new PgSession({
-    pool: pool, // Pass the pool directly
+    pool: pool,
     tableName: 'session',
     createTableIfMissing: true,
   }),
+  name: 'sessionId',
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
+  rolling: true,
+  proxy: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: false,
     httpOnly: true,
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    sameSite: 'strict'
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    sameSite: 'lax',
+    path: '/',
+    domain: 'localhost'
   }
 }));
 
-
-
-// Middleware
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
-}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(helmet());
+// Enable request logging in development
 // app.use(morgan('dev'));
 
 // Session configuration
@@ -72,6 +87,7 @@ app.use(helmet());
 // Routes
 app.use('/api/auth/', authRoutes);
 app.use('/api', jokeRoutes);
+app.use('/api', commentRoutes);
 
 const PORT = process.env.PORT || 4000;
 

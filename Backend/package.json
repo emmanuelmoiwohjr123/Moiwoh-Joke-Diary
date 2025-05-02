@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed": "node seeders/runSeeder.js",
+    "reset-db": "node resetDb.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
